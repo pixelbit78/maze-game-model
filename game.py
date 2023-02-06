@@ -1,11 +1,10 @@
 import pygame
 import random
 from enum import Enum
-from collections import namedtuple
+from collections import namedtuple, deque
 import numpy as np
-
-pygame.init()
-font = pygame.font.SysFont('arial', 25)
+import pickle
+import math
 
 class Direction(Enum):
     RIGHT = 1
@@ -26,9 +25,7 @@ BLUE1 = (0, 0, 255)
 GREEN = (0, 255, 0)
 BLACK = (0,0,0)
 
-WALL_COUNT = 12
 BLOCK_SIZE = 20
-WALL_SIZE = BLOCK_SIZE*3
 SPEED = 40
 
 class MazeGameAI:
@@ -37,6 +34,8 @@ class MazeGameAI:
         self.w = w
         self.h = h
         self.game_time = game_time
+        pygame.init()
+        self.font = pygame.font.SysFont('arial', 25)
 
         # init display
         self.walls = []
@@ -49,55 +48,58 @@ class MazeGameAI:
     def reset(self):
         # init game state
         self.direction = Direction.RIGHT
-
+        self.move_count = deque(maxlen=4) # popleft()
         self.walls = []
+        self.rects = []
         self.target = Point(self.w/2, self.h/2)
         self.score = 0
         self.player = None
+        self._load_rects()
         self._place_walls()
+        self._place_target()
         self._place_player()
         self.frame_iteration = 0
         self.start_time = pygame.time.get_ticks()
 
-    def _place_walls(self):
-        for idx in range(WALL_COUNT):
-            if len(self.walls) <= WALL_COUNT:
-                x = random.randint(0, (self.w-WALL_SIZE )//WALL_SIZE )*WALL_SIZE
-                y = random.randint(0, (self.h-WALL_SIZE )//WALL_SIZE )*WALL_SIZE
+    def _load_rects(self):
+        # Load the maze rects from the file
+        with open("data/maze_rects.pkl", "rb") as f:
+            self.rects = pickle.load(f)
 
-                if not self.is_collision(Point(x, y)):
-                    self.walls.append(Point(x, y))
-                else:
-                    idx -= 1
+    def _place_walls(self):
+        for rect in self.rects:
+            idx = self.rects.index(rect)
+
+            if idx < len(self.rects)-2:
+                x = (rect.x//BLOCK_SIZE)*BLOCK_SIZE
+                y = (rect.y//BLOCK_SIZE)*BLOCK_SIZE
+                self.walls.append(Point(x, y))
+
+    def _place_target(self):
+        rect = self.rects[len(self.rects)-2]
+        x = (rect.x//BLOCK_SIZE)*BLOCK_SIZE
+        y = (rect.y//BLOCK_SIZE)*BLOCK_SIZE
+        self.target = Point(x, y)
+        print(self.target)
 
     def _place_player(self):
-        colided = True
-
-        while colided:
-            hit_wall = False
-            x = random.randint(0, (self.w-BLOCK_SIZE )//BLOCK_SIZE )*BLOCK_SIZE
-            y = random.randint(0, (self.h-BLOCK_SIZE )//BLOCK_SIZE )*BLOCK_SIZE
-            self.player = Point(x, y)
-
-            # hits walls
-            for wall in self.walls:
-                idx = self.walls.index(wall)
-
-                if (idx % 2) == 0:
-                    rect = pygame.Rect(wall.x, wall.y, BLOCK_SIZE, WALL_SIZE)
-                    if rect.collidepoint(self.player):
-                        hit_wall = True
-                else:
-                    rect = pygame.Rect(wall.x, wall.y, WALL_SIZE, BLOCK_SIZE)
-                    if rect.collidepoint(self.player):
-                        hit_wall = True
-
-            colided = hit_wall
+        rect = self.rects[len(self.rects)-1]
+        x = (rect.x//BLOCK_SIZE)*BLOCK_SIZE
+        y = (rect.y//BLOCK_SIZE)*BLOCK_SIZE
+        self.player = Point(x, y)
 
     def get_elapsed_time(self):
         return (pygame.time.get_ticks() - self.start_time) / 1000
 
-    def play_step(self, action):
+    def get_distance(self, source, target):
+        x1, y1 = source
+        x2, y2 = target
+        return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+
+    def train_step(self, action):
+        clock_wise = [Direction.RIGHT.value, Direction.DOWN.value, Direction.LEFT.value, Direction.UP.value]
+        counter_clock_wise = [Direction.RIGHT.value, Direction.UP.value, Direction.LEFT.value, Direction.DOWN.value]
+
         self.frame_iteration += 1
 
         # 1. collect user input
@@ -112,14 +114,21 @@ class MazeGameAI:
         # 3. check if game over
         reward = 0
         game_over = False
+        if list(self.move_count) == clock_wise or list(self.move_count) == counter_clock_wise:
+            print("standing still")
+            game_over = True
+            reward = -10
+            return reward, game_over, self.score
+
         if self.is_collision() or self.get_elapsed_time() > self.game_time:
             game_over = True
             reward = -10
             return reward, game_over, self.score
 
         # 4. check visible
-        if not self.is_visible():
-            reward = 0
+        if self.is_visible() and self.get_distance(self.player, self.target) < 100:
+            print("target is visible and close")
+            reward = 5
 
         # 5. place new target or just move
         if self.player == self.target:
@@ -135,6 +144,37 @@ class MazeGameAI:
         # 6. return game over and score
         return reward, game_over, self.score
 
+    def play_step(self, action):
+        self.frame_iteration += 1
+
+        # 1. collect user input
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
+
+        # 2. move
+        self._move(action) # update the player
+
+        # 3. check if game over
+        game_over = False
+        if self.is_collision() or self.get_elapsed_time() > self.game_time:
+            game_over = True
+            return game_over, self.score
+
+        # 5. place new target or just move
+        if self.player == self.target:
+            self.score += 1
+            self._place_player()
+            self.start_time = pygame.time.get_ticks()
+
+        # 5. update ui and clock
+        self._update_ui()
+        self.clock.tick(SPEED)
+
+        # 6. return game over and score
+        return game_over, self.score
+
 
     def is_collision(self, pt=None):
         colided = False
@@ -149,15 +189,10 @@ class MazeGameAI:
         # hits walls
         for wall in self.walls:
             idx = self.walls.index(wall)
+            rect = self.rects[idx]
 
-            if (idx % 2) == 0:
-                rect = pygame.Rect(wall.x, wall.y, BLOCK_SIZE, WALL_SIZE)
-                if rect.collidepoint(pt):
-                    colided = True
-            else:
-                rect = pygame.Rect(wall.x, wall.y, WALL_SIZE, BLOCK_SIZE)
-                if rect.collidepoint(pt):
-                    colided = True
+            if pygame.Rect(wall.x, wall.y, rect.width, rect.height).collidepoint(pt):
+                colided = True
 
         return colided
 
@@ -189,8 +224,8 @@ class MazeGameAI:
         for point in points:
             for wall in self.walls:
                 idx = self.walls.index(wall)
-                if ((idx % 2) == 0 and pygame.Rect(wall.x, wall.y, BLOCK_SIZE, WALL_SIZE).collidepoint(point) or
-                    (idx % 2) != 0 and pygame.Rect(wall.x, wall.y, WALL_SIZE, BLOCK_SIZE).collidepoint(point)):
+                rect = self.rects[idx]
+                if pygame.Rect(wall.x, wall.y, rect.width, rect.height).collidepoint(point):
                     return False
 
         return True
@@ -202,12 +237,10 @@ class MazeGameAI:
         pygame.draw.rect(self.display, GREEN, pygame.Rect(self.target.x, self.target.y, BLOCK_SIZE, BLOCK_SIZE))
         for wall in self.walls:
             idx = self.walls.index(wall)
-            if (idx % 2) == 0:
-                pygame.draw.rect(self.display, RED, pygame.Rect(wall.x, wall.y, BLOCK_SIZE, WALL_SIZE))
-            else:
-                pygame.draw.rect(self.display, RED, pygame.Rect(wall.x, wall.y, WALL_SIZE, BLOCK_SIZE))
+            rect = self.rects[idx]
+            pygame.draw.rect(self.display, RED, pygame.Rect(wall.x, wall.y, rect.width, rect.height))
 
-        text = font.render("Score: " + str(self.score), True, WHITE)
+        text = self.font.render("Score: " + str(self.score), True, WHITE)
         self.display.blit(text, [0, 0])
         pygame.display.flip()
 
@@ -255,3 +288,5 @@ class MazeGameAI:
             y += BLOCK_SIZE
 
         self.player = Point(x, y)
+
+        self.move_count.append(self.direction.value)

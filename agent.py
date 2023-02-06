@@ -4,7 +4,7 @@ import torch
 import random
 import numpy as np
 from collections import deque
-from game import MazeGameAI, Direction, Point, WALL_COUNT, BLOCK_SIZE
+from game import MazeGameAI, Direction, Point, BLOCK_SIZE
 from model import Linear_QNet, QTrainer
 from helper import plot
 
@@ -19,7 +19,7 @@ class Agent:
         self.epsilon = 0 # randomness
         self.gamma = 0.9 # discount rate
         self.memory = deque(maxlen=MAX_MEMORY) # popleft()
-        self.model = Linear_QNet(12, 256, 3)
+        self.model = Linear_QNet(13, 256, 3)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
         self.append_csv(header=['l_coll', 'r_coll', 'u_coll', 'd_coll', 'left', 'right', 'up',
             'down', 'target', 'l_t_loc_vis', 'r_t_loc_vis',
@@ -86,6 +86,7 @@ class Agent:
             int(game.target.y < game.player.y),
             int(game.target.y > game.player.y),
 
+            int(game.get_distance(game.player, game.target) < 150),
             int(game.is_visible()),
 
             # target visible
@@ -131,9 +132,9 @@ class Agent:
 
     def get_training_action(self, state):
         # random moves: tradeoff exploration / exploitation
-        self.epsilon = 80 - self.n_games
+        self.epsilon = 200 - self.n_games
         final_move = [0,0,0]
-        if random.randint(0, 200) < self.epsilon:
+        if random.randint(0, 300) < self.epsilon:
             move = random.randint(0, 2)
             final_move[move] = 1
         else:
@@ -160,7 +161,7 @@ def train(train_time):
         final_move = agent.get_training_action(state_old)
 
         # perform move and get new state
-        reward, done, score = game.play_step(final_move)
+        reward, done, score = game.train_step(final_move)
         state_new = agent.get_state(game)
 
         # train short memory
@@ -201,7 +202,7 @@ def play(play_time):
         final_move = agent.get_action(state_old)
 
         # perform move and get new state
-        reward, done, score = game.play_step(final_move)
+        done, score = game.play_step(final_move)
 
         if done:
             game.reset()
@@ -212,14 +213,3 @@ def play(play_time):
 
             print('Game', agent.n_games, 'Score', score, 'Record:', record)
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument("mode", help="mode", choices=["train", "play"])
-    parser.add_argument("time", help="time to train/play each game", type=int, default=10)
-    args = parser.parse_args()
-
-
-    if args.mode == "train":
-        train(args.time)
-    else:
-        play(args.time)

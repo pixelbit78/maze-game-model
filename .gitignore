@@ -4,3 +4,5 @@ tensor_agent.py
 tensor_model.py
 test.py
 runs/
+*.pyc
+data/maze_rects.pkl
