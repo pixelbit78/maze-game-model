@@ -34,6 +34,7 @@ class MazeGameAI:
         self.w = w
         self.h = h
         self.game_time = game_time
+        self.record = 0
         pygame.init()
         self.font = pygame.font.SysFont('arial', 25)
 

@@ -14,7 +14,12 @@ LR = 0.001 #learning rate
 
 class Agent:
 
-    def __init__(self):
+    def __init__(self, game, mode):
+        self.game = game
+        self.mode = mode
+        self.plot_scores = []
+        self.plot_mean_scores = []
+        self.total_score = 0
         self.n_games = 0
         self.epsilon = 0 # randomness
         self.gamma = 0.9 # discount rate
@@ -40,39 +45,39 @@ class Agent:
     def load_model(self, file_name='model/model.pth'):
         self.loaded_model = torch.load(file_name)
 
-    def get_state(self, game):
+    def get_state(self):
         tmp_block_size = BLOCK_SIZE
-        player = game.player
+        player = self.game.player
         point_l = Point(player.x - tmp_block_size, player.y)
         point_r = Point(player.x + tmp_block_size, player.y)
         point_u = Point(player.x, player.y - tmp_block_size)
         point_d = Point(player.x, player.y + tmp_block_size)
 
-        dir_l = int(game.direction == Direction.LEFT)
-        dir_r = int(game.direction == Direction.RIGHT)
-        dir_u = int(game.direction == Direction.UP)
-        dir_d = int(game.direction == Direction.DOWN)
+        dir_l = int(self.game.direction == Direction.LEFT)
+        dir_r = int(self.game.direction == Direction.RIGHT)
+        dir_u = int(self.game.direction == Direction.UP)
+        dir_d = int(self.game.direction == Direction.DOWN)
 
         state = [
 
             # collision warning L
             # Danger straight
-            (dir_r and game.is_collision(point_r)) or
-            (dir_l and game.is_collision(point_l)) or
-            (dir_u and game.is_collision(point_u)) or
-            (dir_d and game.is_collision(point_d)),
+            (dir_r and self.game.is_collision(point_r)) or
+            (dir_l and self.game.is_collision(point_l)) or
+            (dir_u and self.game.is_collision(point_u)) or
+            (dir_d and self.game.is_collision(point_d)),
 
             # Danger right
-            (dir_u and game.is_collision(point_r)) or
-            (dir_d and game.is_collision(point_l)) or
-            (dir_l and game.is_collision(point_u)) or
-            (dir_r and game.is_collision(point_d)),
+            (dir_u and self.game.is_collision(point_r)) or
+            (dir_d and self.game.is_collision(point_l)) or
+            (dir_l and self.game.is_collision(point_u)) or
+            (dir_r and self.game.is_collision(point_d)),
 
             # Danger left
-            (dir_d and game.is_collision(point_r)) or
-            (dir_u and game.is_collision(point_l)) or
-            (dir_r and game.is_collision(point_u)) or
-            (dir_l and game.is_collision(point_d)),
+            (dir_d and self.game.is_collision(point_r)) or
+            (dir_u and self.game.is_collision(point_l)) or
+            (dir_r and self.game.is_collision(point_u)) or
+            (dir_l and self.game.is_collision(point_d)),
 
             # Move direction
             dir_l,
@@ -81,13 +86,13 @@ class Agent:
             dir_d,
 
             # target location visible
-            int(game.target.x < game.player.x),
-            int(game.target.x > game.player.x),
-            int(game.target.y < game.player.y),
-            int(game.target.y > game.player.y),
+            int(self.game.target.x < self.game.player.x),
+            int(self.game.target.x > self.game.player.x),
+            int(self.game.target.y < self.game.player.y),
+            int(self.game.target.y > self.game.player.y),
 
-            int(game.get_distance(game.player, game.target) < 150),
-            int(game.is_visible()),
+            int(self.game.get_distance(self.game.player, self.game.target) < 150),
+            int(self.game.is_visible()),
 
             # target visible
             #int(game.is_visible(point_l)) or
@@ -144,72 +149,73 @@ class Agent:
             final_move[move] = 1
 
         return final_move
+    
+    def handle_input(self, event):
+        pass
 
+    def draw(self):
+        if self.mode == "play":
+            # get old state
+            state_old = self.get_state()
 
-def train(train_time):
-    plot_scores = []
-    plot_mean_scores = []
-    total_score = 0
-    record = 0
-    agent = Agent()
-    game = MazeGameAI(game_time=train_time)
-    while True:
-        # get old state
-        state_old = agent.get_state(game)
+            # get move
+            final_move = self.get_action(state_old)
 
-        # get move
-        final_move = agent.get_training_action(state_old)
+            # perform move and get new state
+            done, score = self.game.play_step(final_move)
 
-        # perform move and get new state
-        reward, done, score = game.train_step(final_move)
-        state_new = agent.get_state(game)
+            if done:
+                self.game.reset()
+                self.n_games += 1
 
-        # train short memory
-        agent.train_short_memory(state_old, final_move, reward, state_new, done)
+                if score > self.game.record:
+                    self.game.record = score
 
-        # remember
-        agent.remember(state_old, final_move, reward, state_new, done)
+                print('Game', self.n_games, 'Score', score, 'Record:', self.game.record)
+        else:
+            # get old state
+            state_old = self.get_state()
 
-        agent.append_csv(data=np.append(state_old, final_move))
-        if done:
-            # train long memory, plot result
-            game.reset()
-            agent.n_games += 1
-            agent.train_long_memory()
+            # get move
+            final_move = self.get_training_action(state_old)
 
-            if score > record:
-                record = score
-                agent.model.save()
+            # perform move and get new state
+            reward, done, score = self.game.train_step(final_move)
+            state_new = self.get_state()
 
-            print('Game', agent.n_games, 'Score', score, 'Record:', record)
+            # train short memory
+            self.train_short_memory(state_old, final_move, reward, state_new, done)
 
-            plot_scores.append(score)
-            total_score += score
-            mean_score = total_score / agent.n_games
-            plot_mean_scores.append(mean_score)
-            plot(plot_scores, plot_mean_scores)
+            # remember
+            self.remember(state_old, final_move, reward, state_new, done)
 
-def play(play_time):
-    record = 0
-    agent = Agent()
+            self.append_csv(data=np.append(state_old, final_move))
+            if done:
+                # train long memory, plot result
+                self.game.reset()
+                self.n_games += 1
+                self.train_long_memory()
+
+                if score > self.game.record:
+                    self.game.record = score
+                    self.model.save()
+
+                print('Game', self.n_games, 'Score', score, 'Record:', self.game.record)
+
+                self.plot_scores.append(score)
+                self.total_score += score
+                mean_score = self.total_score / self.n_games
+                self.plot_mean_scores.append(mean_score)
+                plot(self.plot_scores, self.plot_mean_scores)
+
+def train(width, height, train_time):
+    agent = Agent(MazeGameAI(width, height, game_time=train_time), "train")
+
+    return agent    
+
+def play(width, height, play_time):
+    agent = Agent(MazeGameAI(width, height, game_time=play_time), "play")
     agent.load_model()
-    game = MazeGameAI(game_time=play_time)
-    while True:
-        # get old state
-        state_old = agent.get_state(game)
 
-        # get move
-        final_move = agent.get_action(state_old)
-
-        # perform move and get new state
-        done, score = game.play_step(final_move)
-
-        if done:
-            game.reset()
-            agent.n_games += 1
-
-            if score > record:
-                record = score
-
-            print('Game', agent.n_games, 'Score', score, 'Record:', record)
+    return agent
 
