@@ -42,7 +42,7 @@ class MazeBuilder:
         if (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE) or event.type == pygame.QUIT:
             self._exit()
             return "menu"
-            
+
         if event.type == pygame.KEYDOWN:
             # Check if the key pressed is the "t" key
             if event.key == pygame.K_t and self.draw_object != DrawObject.TARGET:
@@ -80,8 +80,6 @@ class MazeBuilder:
             y = (self.start_pos[1]//game.BLOCK_SIZE)*game.BLOCK_SIZE
             rect = pygame.Rect(x, y, self.end_pos[0] - x, self.end_pos[1] - y)
             self.maze_rects.append(rect)
-        
-        return "build"
 
     def draw(self):
         self.screen.fill((0, 0, 0))
@@ -94,6 +92,7 @@ class MazeBuilder:
                 pygame.draw.rect(self.screen, self.wall_color, rect, 1)
 
         if self.drawing:
+            print("hello2")
             self.end_pos = pygame.mouse.get_pos()
             x = (self.start_pos[0]//game.BLOCK_SIZE)*game.BLOCK_SIZE
             y = (self.start_pos[1]//game.BLOCK_SIZE)*game.BLOCK_SIZE

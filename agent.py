@@ -91,7 +91,7 @@ class Agent:
             int(self.game.target.y < self.game.player.y),
             int(self.game.target.y > self.game.player.y),
 
-            int(self.game.get_distance(self.game.player, self.game.target) < 150),
+            int(self.game.get_distance(self.game.player, self.game.target) < 100),
             int(self.game.is_visible()),
 
             # target visible
@@ -137,9 +137,9 @@ class Agent:
 
     def get_training_action(self, state):
         # random moves: tradeoff exploration / exploitation
-        self.epsilon = 200 - self.n_games
+        self.epsilon = 100 - self.n_games
         final_move = [0,0,0]
-        if random.randint(0, 300) < self.epsilon:
+        if random.randint(0, 150) < self.epsilon:
             move = random.randint(0, 2)
             final_move[move] = 1
         else:

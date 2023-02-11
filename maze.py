@@ -31,7 +31,7 @@ class Main:
         elif self.state == "build":
             self.window = builder.MazeBuilder(self.screen_width, self.screen_height)
         elif self.state == "train":
-            self.window = agent.train(self.screen_width, self.screen_height, 10)
+            self.window = agent.train(self.screen_width, self.screen_height, 20)
         elif self.state == "play":
             self.window = agent.play(self.screen_width, self.screen_height, 10)
 

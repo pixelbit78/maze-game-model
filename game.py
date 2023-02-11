@@ -77,11 +77,15 @@ class MazeGameAI:
                 self.walls.append(Point(x, y))
 
     def _place_target(self):
-        rect = self.rects[len(self.rects)-2]
-        x = (rect.x//BLOCK_SIZE)*BLOCK_SIZE
-        y = (rect.y//BLOCK_SIZE)*BLOCK_SIZE
-        self.target = Point(x, y)
-        print(self.target)
+        #rect = self.rects[len(self.rects)-2]
+        collided = True
+
+        while collided:
+            x = (random.randint(0, self.w)//BLOCK_SIZE)*BLOCK_SIZE
+            y = (random.randint(0, self.h)//BLOCK_SIZE)*BLOCK_SIZE
+            self.target = Point(x, y)
+
+            collided = self.is_collision(self.target) 
 
     def _place_player(self):
         rect = self.rects[len(self.rects)-1]
@@ -115,11 +119,11 @@ class MazeGameAI:
         # 3. check if game over
         reward = 0
         game_over = False
-        if list(self.move_count) == clock_wise or list(self.move_count) == counter_clock_wise:
-            print("standing still")
-            game_over = True
-            reward = -10
-            return reward, game_over, self.score
+        #if list(self.move_count) == clock_wise or list(self.move_count) == counter_clock_wise:
+            #print("standing still")
+            #game_over = True
+            #reward = -10
+            #return reward, game_over, self.score
 
         if self.is_collision() or self.get_elapsed_time() > self.game_time:
             game_over = True
@@ -127,15 +131,15 @@ class MazeGameAI:
             return reward, game_over, self.score
 
         # 4. check visible
-        if self.is_visible() and self.get_distance(self.player, self.target) < 100:
-            print("target is visible and close")
-            reward = 5
+        #if self.is_visible() and self.get_distance(self.player, self.target) < 100:
+         #   print("target is visible and close")
+          #  reward = 5
 
         # 5. place new target or just move
         if self.player == self.target:
             self.score += 1
             reward = 10
-            self._place_player()
+            self._place_target()
             self.start_time = pygame.time.get_ticks()
 
         # 5. update ui and clock
