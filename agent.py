@@ -24,7 +24,7 @@ class Agent:
         self.epsilon = 0 # randomness
         self.gamma = 0.9 # discount rate
         self.memory = deque(maxlen=MAX_MEMORY) # popleft()
-        self.model = Linear_QNet(13, 256, 3)
+        self.model = Linear_QNet(11, 256, 3)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
         self.append_csv(header=['l_coll', 'r_coll', 'u_coll', 'd_coll', 'left', 'right', 'up',
             'down', 'target', 'l_t_loc_vis', 'r_t_loc_vis',
@@ -91,9 +91,6 @@ class Agent:
             int(self.game.target.y < self.game.player.y),
             int(self.game.target.y > self.game.player.y),
 
-            int(self.game.get_distance(self.game.player, self.game.target) < 100),
-            int(self.game.is_visible()),
-
             # target visible
             #int(game.is_visible(point_l)) or
             #int(game.is_visible(point_r)) or
@@ -137,9 +134,9 @@ class Agent:
 
     def get_training_action(self, state):
         # random moves: tradeoff exploration / exploitation
-        self.epsilon = 100 - self.n_games
+        self.epsilon = 80 - self.n_games
         final_move = [0,0,0]
-        if random.randint(0, 150) < self.epsilon:
+        if random.randint(0, 120) < self.epsilon:
             move = random.randint(0, 2)
             final_move[move] = 1
         else:
@@ -149,9 +146,9 @@ class Agent:
             final_move[move] = 1
 
         return final_move
-    
+
     def handle_input(self, event):
-        pass
+        self.game.handle_input(event)
 
     def draw(self):
         if self.mode == "play":
@@ -211,7 +208,7 @@ class Agent:
 def train(width, height, train_time):
     agent = Agent(MazeGameAI(width, height, game_time=train_time), "train")
 
-    return agent    
+    return agent
 
 def play(width, height, play_time):
     agent = Agent(MazeGameAI(width, height, game_time=play_time), "play")

@@ -7,6 +7,7 @@ import pickle
 import math
 
 class Direction(Enum):
+    NONE = 0
     RIGHT = 1
     LEFT = 2
     UP = 3
@@ -43,12 +44,13 @@ class MazeGameAI:
         self.display = pygame.display.set_mode((self.w, self.h))
         pygame.display.set_caption('Maze Game')
         self.clock = pygame.time.Clock()
+        self.direction = Direction.NONE
         self.reset()
 
 
     def reset(self):
         # init game state
-        self.direction = Direction.RIGHT
+        self.direction = Direction.NONE
         self.move_count = deque(maxlen=4) # popleft()
         self.walls = []
         self.rects = []
@@ -85,7 +87,10 @@ class MazeGameAI:
             y = (random.randint(0, self.h)//BLOCK_SIZE)*BLOCK_SIZE
             self.target = Point(x, y)
 
-            collided = self.is_collision(self.target) 
+            if x % BLOCK_SIZE != 0 or y % BLOCK_SIZE != 0:
+                continue
+
+            collided = self.is_collision(self.target)
 
     def _place_player(self):
         rect = self.rects[len(self.rects)-1]
@@ -108,22 +113,19 @@ class MazeGameAI:
         self.frame_iteration += 1
 
         # 1. collect user input
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                quit()
 
         # 2. move
         self._move(action) # update the player
+        #self._manual_move() # update the player
 
         # 3. check if game over
         reward = 0
         game_over = False
         #if list(self.move_count) == clock_wise or list(self.move_count) == counter_clock_wise:
-            #print("standing still")
-            #game_over = True
-            #reward = -10
-            #return reward, game_over, self.score
+        #    print("standing still")
+        #    game_over = True
+        #    reward = -10
+        #    return reward, game_over, self.score
 
         if self.is_collision() or self.get_elapsed_time() > self.game_time:
             game_over = True
@@ -153,10 +155,6 @@ class MazeGameAI:
         self.frame_iteration += 1
 
         # 1. collect user input
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                quit()
 
         # 2. move
         self._move(action) # update the player
@@ -237,8 +235,12 @@ class MazeGameAI:
 
     def _update_ui(self):
         self.display.fill(BLACK)
+        radius = self.get_distance(self.player, self.target)
+        x = (self.target.x//BLOCK_SIZE)*BLOCK_SIZE
+        y = (self.target.y//BLOCK_SIZE)*BLOCK_SIZE
 
         pygame.draw.rect(self.display, BLUE1, pygame.Rect(self.player.x, self.player.y, BLOCK_SIZE, BLOCK_SIZE))
+        pygame.draw.circle(self.display, GREEN, (x,y), 50, 1)
         pygame.draw.rect(self.display, GREEN, pygame.Rect(self.target.x, self.target.y, BLOCK_SIZE, BLOCK_SIZE))
         for wall in self.walls:
             idx = self.walls.index(wall)
@@ -251,6 +253,9 @@ class MazeGameAI:
 
 
     def _move(self, action):
+        if self.direction == Direction.NONE:
+            self.direction = Direction.RIGHT
+
         clock_wise = [Direction.RIGHT, Direction.DOWN, Direction.LEFT, Direction.UP]
         idx = clock_wise.index(self.direction)
         #new_dir = clock_wise[(np.argmax(action)+1) % 4]
@@ -295,3 +300,23 @@ class MazeGameAI:
         self.player = Point(x, y)
 
         self.move_count.append(self.direction.value)
+
+    def _manual_move(self):
+
+        if self.direction != Direction.NONE:
+            x = (pygame.mouse.get_pos()[0]//BLOCK_SIZE)*BLOCK_SIZE
+            y = (pygame.mouse.get_pos()[1]//BLOCK_SIZE)*BLOCK_SIZE
+            self.player = Point(x, y)
+
+        self.move_count.append(self.direction.value)
+
+    def handle_input(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_LEFT:
+                self.direction = Direction.LEFT
+            elif event.key == pygame.K_RIGHT:
+                self.direction = Direction.RIGHT
+            elif event.key == pygame.K_UP:
+                self.direction = Direction.UP
+            elif event.key == pygame.K_DOWN:
+                self.direction = Direction.DOWN

@@ -10,7 +10,7 @@ class Main:
         self.screen_height = 600
         self.state = "menu"
         self.window = menu.MazeMenu(self.screen_width, self.screen_height)
-        
+
     def run(self):
         running = True
         while running:
@@ -18,13 +18,13 @@ class Main:
                 if event.type == pygame.QUIT:
                     running = False
                 self.state = self.handle_input(event)
-                    
+
             self.window.draw()
-                
+
             pygame.display.update()
-        
+
         pygame.quit()
-    
+
     def handle_input(self, event):
         if self.state == "menu":
             self.window = menu.MazeMenu(self.screen_width, self.screen_height)
